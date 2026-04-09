@@ -55,7 +55,7 @@ export default function AddFoodPage() {
     debounceRef.current = setTimeout(() => doSearch(val), 400);
   };
 
-  const handleBarcodeScan = async (code) => {
+  const handleBarcodeScan = useCallback(async (code) => {
     setShowScanner(false);
     setSearching(true);
     try {
@@ -66,7 +66,7 @@ export default function AddFoodPage() {
       doSearch(code);
     }
     setSearching(false);
-  };
+  }, [doSearch]);
 
   const logFood = async (food, servingsVal) => {
     setLogging(true);
