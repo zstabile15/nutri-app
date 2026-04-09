@@ -9,24 +9,37 @@ export function AuthProvider({ children }) {
     return saved ? JSON.parse(saved) : null;
   });
   const [loading, setLoading] = useState(true);
+  const [needsSetup, setNeedsSetup] = useState(null); // null = unknown, true/false after check
 
   useEffect(() => {
-    const token = localStorage.getItem('nutri_token');
-    if (token) {
-      api.getMe()
-        .then(u => {
+    async function init() {
+      // 1. Check if the instance needs initial admin setup
+      try {
+        const status = await api.getSetupStatus();
+        setNeedsSetup(status.needs_setup);
+      } catch {
+        // If the endpoint fails, assume setup is done (older backend)
+        setNeedsSetup(false);
+      }
+
+      // 2. Validate existing token if present
+      const token = localStorage.getItem('nutri_token');
+      if (token) {
+        try {
+          const u = await api.getMe();
           setUser(u);
           localStorage.setItem('nutri_user', JSON.stringify(u));
-        })
-        .catch(() => {
+        } catch {
           localStorage.removeItem('nutri_token');
           localStorage.removeItem('nutri_user');
           setUser(null);
-        })
-        .finally(() => setLoading(false));
-    } else {
+        }
+      }
+
       setLoading(false);
     }
+
+    init();
   }, []);
 
   const login = async (username, password) => {
@@ -37,11 +50,12 @@ export function AuthProvider({ children }) {
     return res.user;
   };
 
-  const register = async (username, email, password) => {
-    const res = await api.register({ username, email, password });
+  const setupAdmin = async (username, email, password) => {
+    const res = await api.setupAdmin({ username, email: email || undefined, password });
     localStorage.setItem('nutri_token', res.access_token);
     localStorage.setItem('nutri_user', JSON.stringify(res.user));
     setUser(res.user);
+    setNeedsSetup(false);
     return res.user;
   };
 
@@ -51,6 +65,12 @@ export function AuthProvider({ children }) {
     setUser(null);
   };
 
+  const loginWithToken = (token, userData) => {
+    localStorage.setItem('nutri_token', token);
+    localStorage.setItem('nutri_user', JSON.stringify(userData));
+    setUser(userData);
+  };
+
   const refreshUser = async () => {
     const u = await api.getMe();
     setUser(u);
@@ -58,7 +78,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, loading, needsSetup, login, loginWithToken, setupAdmin, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

@@ -19,6 +19,7 @@ class UserOut(BaseModel):
     id: int
     username: str
     email: Optional[str] = None
+    is_admin: bool = False
     calorie_goal: int = 2000
     protein_goal: int = 150
     carb_goal: int = 250
@@ -156,3 +157,22 @@ class DailySummary(BaseModel):
 
 class OIDCLoginURL(BaseModel):
     url: str
+
+
+class SetupStatus(BaseModel):
+    needs_setup: bool
+    admin_exists: bool
+
+
+class AdminSetup(BaseModel):
+    username: str = Field(min_length=3, max_length=50)
+    email: Optional[str] = None
+    password: str = Field(min_length=6)
+
+
+class AdminUserList(BaseModel):
+    id: int
+    username: str
+    email: Optional[str] = None
+    is_admin: bool
+    created_at: Optional[str] = None
