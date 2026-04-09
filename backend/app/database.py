@@ -30,6 +30,7 @@ async def init_db():
         email TEXT UNIQUE,
         password_hash TEXT,
         oidc_sub TEXT UNIQUE,
+        is_admin INTEGER DEFAULT 0,
         calorie_goal INTEGER DEFAULT 2000,
         protein_goal INTEGER DEFAULT 150,
         carb_goal INTEGER DEFAULT 250,
@@ -112,5 +113,25 @@ async def init_db():
     CREATE INDEX IF NOT EXISTS idx_workout_user_date ON workouts(user_id, logged_at);
     """)
 
+    # Migration: add is_admin column if upgrading from older schema
+    cursor = await db.execute("PRAGMA table_info(users)")
+    columns = [row[1] for row in await cursor.fetchall()]
+    if "is_admin" not in columns:
+        await db.execute("ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0")
+
     await db.commit()
+
+    # Auto-create admin from environment variables if set and no admin exists yet
+    settings = get_settings()
+    if settings.admin_username and settings.admin_password:
+        cursor = await db.execute("SELECT id FROM users WHERE is_admin = 1")
+        if not await cursor.fetchone():
+            from app.auth import hash_password
+            pw_hash = hash_password(settings.admin_password)
+            await db.execute(
+                "INSERT OR IGNORE INTO users (username, password_hash, is_admin) VALUES (?, ?, 1)",
+                (settings.admin_username, pw_hash),
+            )
+            await db.commit()
+
     await db.close()

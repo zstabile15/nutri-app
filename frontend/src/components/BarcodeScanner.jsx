@@ -5,14 +5,6 @@ export default function BarcodeScanner({ onScan, onClose }) {
   const scannerRef = useRef(null);
   const [error, setError] = useState(null);
 
-  const handleClose = async () => {
-    if (scannerRef.current) {
-      try { await scannerRef.current.stop(); } catch {}
-      scannerRef.current = null;
-    }
-    onClose();
-  };
-
   useEffect(() => {
     let scanner = null;
 
@@ -36,18 +28,7 @@ export default function BarcodeScanner({ onScan, onClose }) {
           () => {} // ignore scan failures
         );
       } catch (err) {
-        console.error('BarcodeScanner error:', err);
-        if (!window.isSecureContext) {
-          setError('Camera requires a secure connection (HTTPS). Please access this app over HTTPS.');
-        } else if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
-          setError('Camera permission denied. Please allow camera access in your browser settings and try again.');
-        } else if (err?.name === 'NotFoundError' || err?.name === 'DevicesNotFoundError') {
-          setError('No camera found on this device.');
-        } else if (err?.name === 'NotReadableError') {
-          setError('Camera is already in use by another application.');
-        } else {
-          setError(`Camera unavailable: ${err?.message || err}`);
-        }
+        setError('Camera access denied or unavailable. Please check permissions.');
       }
     }
 
@@ -67,7 +48,7 @@ export default function BarcodeScanner({ onScan, onClose }) {
           <Camera size={20} />
           <span style={{ fontWeight: 600 }}>Scan Barcode</span>
         </div>
-        <button className="btn btn-icon btn-ghost" onClick={handleClose}>
+        <button className="btn btn-icon btn-ghost" onClick={onClose}>
           <X size={20} />
         </button>
       </div>

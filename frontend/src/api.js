@@ -27,11 +27,24 @@ async function request(path, options = {}) {
 }
 
 export const api = {
+  // Setup (public)
+  getSetupStatus: () => request('/api/auth/setup-status'),
+  setupAdmin: (data) => request('/api/auth/setup', { method: 'POST', body: JSON.stringify(data) }),
+
   // Auth
   register: (data) => request('/api/auth/register', { method: 'POST', body: JSON.stringify(data) }),
   login: (data) => request('/api/auth/login', { method: 'POST', body: JSON.stringify(data) }),
   getMe: () => request('/api/auth/me'),
   updateGoals: (data) => request('/api/auth/goals', { method: 'PUT', body: JSON.stringify(data) }),
+
+  // Admin
+  listUsers: () => request('/api/auth/users'),
+  deleteUser: (id) => request(`/api/auth/users/${id}`, { method: 'DELETE' }),
+
+  // OIDC
+  getOidcEnabled: () => request('/api/auth/oidc/enabled'),
+  getOidcLoginUrl: () => request('/api/auth/oidc/login'),
+  oidcCallback: (code, state) => request(`/api/auth/oidc/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state || '')}`),
 
   // Foods
   searchFoods: (q) => request(`/api/foods/search?q=${encodeURIComponent(q)}`),

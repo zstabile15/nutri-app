@@ -1,33 +1,48 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Leaf } from 'lucide-react';
+import { api } from '../api';
+import { Leaf, LogIn } from 'lucide-react';
 
 export default function LoginPage() {
-  const [tab, setTab] = useState('login');
   const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login, register } = useAuth();
+  const [oidcEnabled, setOidcEnabled] = useState(false);
+  const [oidcLoading, setOidcLoading] = useState(false);
+  const { login } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    api.getOidcEnabled()
+      .then(res => setOidcEnabled(res.enabled))
+      .catch(() => {});
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
-      if (tab === 'login') {
-        await login(username, password);
-      } else {
-        await register(username, email, password);
-      }
+      await login(username, password);
       navigate('/');
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleOidcLogin = async () => {
+    setOidcLoading(true);
+    setError('');
+    try {
+      const res = await api.getOidcLoginUrl();
+      window.location.href = res.url;
+    } catch (err) {
+      setError(err.message);
+      setOidcLoading(false);
     }
   };
 
@@ -39,16 +54,30 @@ export default function LoginPage() {
           <span>Nutri</span>
         </div>
 
-        <div className="auth-tabs">
-          <button className={`auth-tab ${tab === 'login' ? 'active' : ''}`} onClick={() => setTab('login')}>
-            Sign In
-          </button>
-          <button className={`auth-tab ${tab === 'register' ? 'active' : ''}`} onClick={() => setTab('register')}>
-            Sign Up
-          </button>
-        </div>
-
         {error && <div className="auth-error">{error}</div>}
+
+        {/* OIDC SSO button */}
+        {oidcEnabled && (
+          <>
+            <button
+              className="btn btn-secondary btn-lg btn-full"
+              onClick={handleOidcLogin}
+              disabled={oidcLoading}
+              style={{ marginBottom: 'var(--space-md)' }}
+            >
+              {oidcLoading ? <span className="spinner" /> : <><LogIn size={18} /> Sign in with SSO</>}
+            </button>
+
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 'var(--space-md)',
+              margin: 'var(--space-md) 0', color: 'var(--text-tertiary)', fontSize: '0.82rem',
+            }}>
+              <div style={{ flex: 1, height: '1px', background: 'var(--border-color)' }} />
+              <span>or</span>
+              <div style={{ flex: 1, height: '1px', background: 'var(--border-color)' }} />
+            </div>
+          </>
+        )}
 
         <form onSubmit={handleSubmit} className="flex-col gap-md">
           <div className="input-group">
@@ -61,22 +90,9 @@ export default function LoginPage() {
               placeholder="Enter username"
               required
               autoComplete="username"
+              autoFocus={!oidcEnabled}
             />
           </div>
-
-          {tab === 'register' && (
-            <div className="input-group">
-              <label>Email (optional)</label>
-              <input
-                className="input"
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                autoComplete="email"
-              />
-            </div>
-          )}
 
           <div className="input-group">
             <label>Password</label>
@@ -88,14 +104,18 @@ export default function LoginPage() {
               placeholder="Enter password"
               required
               minLength={6}
-              autoComplete={tab === 'login' ? 'current-password' : 'new-password'}
+              autoComplete="current-password"
             />
           </div>
 
           <button className="btn btn-primary btn-lg btn-full" type="submit" disabled={loading}>
-            {loading ? <span className="spinner" /> : tab === 'login' ? 'Sign In' : 'Create Account'}
+            {loading ? <span className="spinner" /> : 'Sign In'}
           </button>
         </form>
+
+        <p style={{ textAlign: 'center', marginTop: 'var(--space-lg)', fontSize: '0.82rem', color: 'var(--text-tertiary)' }}>
+          Need an account? Contact your admin.
+        </p>
       </div>
     </div>
   );
