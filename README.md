@@ -17,15 +17,6 @@ A modern, mobile-first calorie tracking web app with meal logging, barcode scann
 - **PWA** — Installable on mobile devices with manifest.json
 - **Responsive** — Mobile-first design (480px max content width)
 
-## Tech Stack
-
-| Layer    | Technology                                   |
-|----------|----------------------------------------------|
-| Backend  | Python FastAPI, aiosqlite (SQLite), Uvicorn  |
-| Frontend | React 18, Vite, Recharts, lucide-react       |
-| Scanner  | html5-qrcode                                 |
-| Deploy   | Docker Compose (nginx + uvicorn)             |
-
 ## Quick Start
 
 ```bash
@@ -82,62 +73,6 @@ The Vite dev server proxies `/api` requests to the backend at `localhost:8000`.
 3. **Custom Foods** — User-created food entries stored in SQLite
 
 All external API results are cached in the local SQLite database to minimize repeat queries.
-
-## Architecture
-
-```
-nutri/
-├── docker-compose.yml
-├── .env.example
-├── backend/
-│   ├── Dockerfile
-│   ├── requirements.txt
-│   └── app/
-│       ├── main.py            # FastAPI app + CORS + lifespan
-│       ├── config.py           # Pydantic settings
-│       ├── database.py         # SQLite schema + connection
-│       ├── auth.py             # JWT + password hashing
-│       ├── schemas.py          # Pydantic models
-│       ├── routers/
-│       │   ├── auth.py         # Register/login/OIDC
-│       │   ├── foods.py        # Search + barcode + custom foods
-│       │   ├── meals.py        # Meal logging + daily summary
-│       │   ├── weight.py       # Weight tracking
-│       │   └── workouts.py     # Workout tracking
-│       └── services/
-│           └── food_search.py  # OFF + USDA API clients
-└── frontend/
-    ├── Dockerfile
-    ├── nginx.conf
-    ├── vite.config.js
-    ├── public/
-    │   ├── favicon.svg
-    │   └── manifest.json
-    └── src/
-        ├── main.jsx
-        ├── App.jsx
-        ├── api.js
-        ├── context/
-        │   ├── AuthContext.jsx
-        │   └── ThemeContext.jsx
-        ├── hooks/
-        │   └── useDate.js
-        ├── components/
-        │   ├── BottomNav.jsx
-        │   ├── MacroDisplay.jsx
-        │   ├── DateNav.jsx
-        │   ├── Modal.jsx
-        │   └── BarcodeScanner.jsx
-        ├── pages/
-        │   ├── LoginPage.jsx
-        │   ├── Dashboard.jsx
-        │   ├── AddFoodPage.jsx
-        │   ├── WeightPage.jsx
-        │   ├── WorkoutsPage.jsx
-        │   └── SettingsPage.jsx
-        └── styles/
-            └── global.css
-```
 
 ## License
 

@@ -7,6 +7,37 @@ import BarcodeScanner from '../components/BarcodeScanner';
 
 const MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack'];
 
+// Conversion factors to base units (grams / milliliters)
+const WEIGHT_TO_G = { g: 1, oz: 28.3495 };
+const VOL_TO_ML = { ml: 1, cup: 236.588, tbsp: 14.787, tsp: 4.929 };
+
+function getAvailableUnits(food) {
+  if (!food) return ['serving'];
+  const units = ['serving'];
+  if (food.serving_unit in WEIGHT_TO_G) {
+    units.push('g', 'oz');
+  } else if (food.serving_unit in VOL_TO_ML) {
+    units.push('ml', 'cup', 'tbsp', 'tsp');
+  }
+  return units;
+}
+
+// Returns a multiplier relative to 1 serving of the food
+function getServingsMultiplier(amount, unit, food) {
+  if (unit === 'serving') return amount;
+  if (unit in WEIGHT_TO_G && food.serving_unit in WEIGHT_TO_G) {
+    const amountInG = amount * WEIGHT_TO_G[unit];
+    const servingInG = food.serving_size * WEIGHT_TO_G[food.serving_unit];
+    return amountInG / servingInG;
+  }
+  if (unit in VOL_TO_ML && food.serving_unit in VOL_TO_ML) {
+    const amountInMl = amount * VOL_TO_ML[unit];
+    const servingInMl = food.serving_size * VOL_TO_ML[food.serving_unit];
+    return amountInMl / servingInMl;
+  }
+  return amount / food.serving_size;
+}
+
 function guessMealType() {
   const h = new Date().getHours();
   if (h < 11) return 'breakfast';
@@ -23,12 +54,42 @@ export default function AddFoodPage() {
   const [showScanner, setShowScanner] = useState(false);
   const [showCustom, setShowCustom] = useState(false);
   const [selectedFood, setSelectedFood] = useState(null);
-  const [servings, setServings] = useState(1);
+  const [amount, setAmount] = useState(1);
+  const [amountUnit, setAmountUnit] = useState('serving');
   const [mealType, setMealType] = useState(guessMealType);
   const [logging, setLogging] = useState(false);
   const [recentFoods, setRecentFoods] = useState([]);
   const [showRecent, setShowRecent] = useState(false);
   const debounceRef = useRef(null);
+
+  const selectFood = (food) => {
+    setSelectedFood(food);
+    setAmount(1);
+    setAmountUnit('serving');
+  };
+
+  const handleUnitChange = (newUnit) => {
+    if (!selectedFood) return;
+    const currentMultiplier = getServingsMultiplier(amount, amountUnit, selectedFood);
+    let newAmount;
+    if (newUnit === 'serving') {
+      newAmount = currentMultiplier;
+    } else if (newUnit in WEIGHT_TO_G) {
+      const baseInG = selectedFood.serving_unit in WEIGHT_TO_G
+        ? currentMultiplier * selectedFood.serving_size * WEIGHT_TO_G[selectedFood.serving_unit]
+        : currentMultiplier * selectedFood.serving_size;
+      newAmount = baseInG / WEIGHT_TO_G[newUnit];
+    } else if (newUnit in VOL_TO_ML) {
+      const baseInMl = selectedFood.serving_unit in VOL_TO_ML
+        ? currentMultiplier * selectedFood.serving_size * VOL_TO_ML[selectedFood.serving_unit]
+        : currentMultiplier * selectedFood.serving_size;
+      newAmount = baseInMl / VOL_TO_ML[newUnit];
+    } else {
+      newAmount = currentMultiplier;
+    }
+    setAmount(Math.round(newAmount * 100) / 100);
+    setAmountUnit(newUnit);
+  };
 
   // Custom food fields
   const [custom, setCustom] = useState({
@@ -60,28 +121,29 @@ export default function AddFoodPage() {
     setSearching(true);
     try {
       const food = await api.lookupBarcode(code);
-      setSelectedFood(food);
+      selectFood(food);
     } catch {
       setQuery(code);
       doSearch(code);
     }
     setSearching(false);
-  }, [doSearch]);
+  }, [doSearch]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const logFood = async (food, servingsVal) => {
+  const logFood = async (food) => {
+    const multiplier = getServingsMultiplier(amount, amountUnit, food);
     setLogging(true);
     try {
       await api.logMeal({
         food_item_id: food.id,
         food_name: food.name,
         meal_type: mealType,
-        servings: servingsVal,
-        calories: food.calories * servingsVal,
-        protein: food.protein * servingsVal,
-        carbs: food.carbs * servingsVal,
-        fat: food.fat * servingsVal,
-        fiber: (food.fiber || 0) * servingsVal,
-        sugar: (food.sugar || 0) * servingsVal,
+        servings: multiplier,
+        calories: food.calories * multiplier,
+        protein: food.protein * multiplier,
+        carbs: food.carbs * multiplier,
+        fat: food.fat * multiplier,
+        fiber: (food.fiber || 0) * multiplier,
+        sugar: (food.sugar || 0) * multiplier,
       });
       navigate('/');
     } catch (err) {
@@ -104,7 +166,7 @@ export default function AddFoodPage() {
         serving_size: parseFloat(custom.serving_size) || 100,
         serving_unit: custom.serving_unit,
       });
-      setSelectedFood(food);
+      selectFood(food);
       setShowCustom(false);
     } catch (err) {
       console.error(err);
@@ -180,7 +242,7 @@ export default function AddFoodPage() {
               <p className="section-title">Recent Foods</p>
               <div className="search-results">
                 {recentFoods.map(food => (
-                  <div key={food.id} className="food-result" onClick={() => setSelectedFood(food)}>
+                  <div key={food.id} className="food-result" onClick={() => selectFood(food)}>
                     <div className="food-result-info">
                       <div className="food-result-name">{food.name}</div>
                       {food.brand && <div className="food-result-brand">{food.brand}</div>}
@@ -196,7 +258,7 @@ export default function AddFoodPage() {
           {results.length > 0 && (
             <div className="search-results" style={{ marginTop: 'var(--space-md)' }}>
               {results.map((food, i) => (
-                <div key={`${food.source}-${food.source_id || food.id}-${i}`} className="food-result" onClick={() => setSelectedFood(food)}>
+                <div key={`${food.source}-${food.source_id || food.id}-${i}`} className="food-result" onClick={() => selectFood(food)}>
                   <div className="food-result-info">
                     <div className="food-result-name">{food.name}</div>
                     <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
@@ -220,7 +282,7 @@ export default function AddFoodPage() {
 
       {/* Food detail / log confirmation */}
       {selectedFood && (
-        <Modal title="Log Food" onClose={() => { setSelectedFood(null); setServings(1); }}>
+        <Modal title="Log Food" onClose={() => { setSelectedFood(null); setAmount(1); setAmountUnit('serving'); }}>
           <div className="flex-col gap-md">
             <div>
               <h3 style={{ fontSize: '1.1rem', fontWeight: 600 }}>{selectedFood.name}</h3>
@@ -231,40 +293,53 @@ export default function AddFoodPage() {
 
             <div className="card" style={{ padding: 'var(--space-sm) var(--space-md)' }}>
               <div className="grid-4" style={{ textAlign: 'center' }}>
-                <div>
-                  <div style={{ fontWeight: 700, color: 'var(--accent-text)' }}>{Math.round(selectedFood.calories * servings)}</div>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)' }}>kcal</div>
-                </div>
-                <div>
-                  <div style={{ fontWeight: 700, color: 'var(--protein-color)' }}>{Math.round(selectedFood.protein * servings)}g</div>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)' }}>Protein</div>
-                </div>
-                <div>
-                  <div style={{ fontWeight: 700, color: 'var(--carbs-color)' }}>{Math.round(selectedFood.carbs * servings)}g</div>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)' }}>Carbs</div>
-                </div>
-                <div>
-                  <div style={{ fontWeight: 700, color: 'var(--fat-color)' }}>{Math.round(selectedFood.fat * servings)}g</div>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)' }}>Fat</div>
-                </div>
+                {(() => {
+                  const m = getServingsMultiplier(amount, amountUnit, selectedFood);
+                  return (
+                    <>
+                      <div>
+                        <div style={{ fontWeight: 700, color: 'var(--accent-text)' }}>{Math.round(selectedFood.calories * m)}</div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)' }}>kcal</div>
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 700, color: 'var(--protein-color)' }}>{Math.round(selectedFood.protein * m)}g</div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)' }}>Protein</div>
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 700, color: 'var(--carbs-color)' }}>{Math.round(selectedFood.carbs * m)}g</div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)' }}>Carbs</div>
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 700, color: 'var(--fat-color)' }}>{Math.round(selectedFood.fat * m)}g</div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)' }}>Fat</div>
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             </div>
 
             <div className="grid-2">
               <div className="input-group">
-                <label>Servings</label>
+                <label>Amount</label>
                 <input
                   className="input"
                   type="number"
-                  step="0.25"
-                  min="0.25"
-                  value={servings}
-                  onChange={e => setServings(parseFloat(e.target.value) || 1)}
+                  step="any"
+                  min="0"
+                  value={amount}
+                  onChange={e => setAmount(parseFloat(e.target.value) || 0)}
                 />
               </div>
               <div className="input-group">
-                <label>Serving size</label>
-                <input className="input" disabled value={`${selectedFood.serving_size} ${selectedFood.serving_unit}`} />
+                <label>Unit</label>
+                <select className="select" value={amountUnit} onChange={e => handleUnitChange(e.target.value)}>
+                  {getAvailableUnits(selectedFood).map(u => (
+                    <option key={u} value={u}>
+                      {u === 'serving' ? `serving (${selectedFood.serving_size}${selectedFood.serving_unit})` : u}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
@@ -279,7 +354,7 @@ export default function AddFoodPage() {
 
             <button
               className="btn btn-primary btn-lg btn-full"
-              onClick={() => logFood(selectedFood, servings)}
+              onClick={() => logFood(selectedFood)}
               disabled={logging}
             >
               {logging ? <span className="spinner" /> : <><Plus size={18} /> Log Food</>}
