@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { useDate } from '../hooks/useDate';
 import { CalorieRing, MacroBars } from '../components/MacroDisplay';
 import DateNav from '../components/DateNav';
+import Modal from '../components/Modal';
 
 const MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack'];
 
@@ -18,6 +19,17 @@ export default function Dashboard() {
   const [meals, setMeals] = useState([]);
   const [workouts, setWorkouts] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  const installKey = user ? `nutri_pwa_shown_${user.id}` : null;
+  const [showInstall, setShowInstall] = useState(() => {
+    if (!installKey) return false;
+    return !localStorage.getItem(installKey);
+  });
+
+  const dismissInstall = () => {
+    if (installKey) localStorage.setItem(installKey, '1');
+    setShowInstall(false);
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -54,6 +66,40 @@ export default function Dashboard() {
   return (
     <div>
       <DateNav formatDisplay={formatDisplay} prev={prev} next={next} isToday={isToday} />
+
+      {showInstall && (
+        <Modal title="Install on Your Phone" onClose={dismissInstall}>
+          <div className="flex-col gap-lg" style={{ paddingBottom: 'var(--space-md)' }}>
+            <p style={{ color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+              Install Nutri to your home screen for a full app experience — no app store required.
+            </p>
+
+            <div className="flex-col gap-md">
+              <div className="card" style={{ padding: 'var(--space-md)' }}>
+                <p style={{ fontWeight: 700, marginBottom: 'var(--space-xs)' }}>iPhone / iPad (Safari)</p>
+                <ol style={{ paddingLeft: '1.2rem', color: 'var(--text-secondary)', lineHeight: 1.8, margin: 0 }}>
+                  <li>Open this site in <strong>Safari</strong></li>
+                  <li>Tap the <strong>Share</strong> button (box with arrow) at the bottom</li>
+                  <li>Scroll down and tap <strong>"Add to Home Screen"</strong></li>
+                  <li>Tap <strong>Add</strong></li>
+                </ol>
+              </div>
+
+              <div className="card" style={{ padding: 'var(--space-md)' }}>
+                <p style={{ fontWeight: 700, marginBottom: 'var(--space-xs)' }}>Android (Chrome)</p>
+                <ol style={{ paddingLeft: '1.2rem', color: 'var(--text-secondary)', lineHeight: 1.8, margin: 0 }}>
+                  <li>Open this site in <strong>Chrome</strong></li>
+                  <li>Tap the <strong>⋮ menu</strong> in the top-right corner</li>
+                  <li>Tap <strong>"Add to Home Screen"</strong> or <strong>"Install App"</strong></li>
+                  <li>Tap <strong>Add</strong></li>
+                </ol>
+              </div>
+            </div>
+
+            <button className="btn btn-primary" onClick={dismissInstall}>Got it</button>
+          </div>
+        </Modal>
+      )}
 
       {summary && (
         <div className="flex-col gap-lg" style={{ marginBottom: 'var(--space-lg)' }}>
